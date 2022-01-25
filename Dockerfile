@@ -107,15 +107,16 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y sudo libusb-1.0 && \
     rm -rf /var/lib/apt/lists/*
 
+# additional configs (sudo)
+COPY docker/etc /etc
+
+USER hummingbot:hummingbot
 WORKDIR /home/hummingbot
 
 # Copy all build artifacts from builder image
 COPY --from=builder --chown=hummingbot:hummingbot /home/ /home/
 
-# additional configs (sudo)
-COPY docker/etc /etc
 
 # Setting bash as default shell because we have .bashrc with customized PATH (setting SHELL affects RUN, CMD and ENTRYPOINT, but not manual commands e.g. `docker run image COMMAND`!)
 SHELL [ "/bin/bash", "-lc" ]
-CMD /home/hummingbot/miniconda3/envs/$(head -1 setup/environment-linux.yml | cut -d' ' -f2)/bin/python3 bin/hummingbot_quickstart.py \
-    --auto-set-permissions $(id -u hummingbot):$(id -g hummingbot)
+CMD /home/hummingbot/miniconda3/envs/$(head -1 setup/environment-linux.yml | cut -d' ' -f2)/bin/python3 bin/hummingbot_quickstart.py

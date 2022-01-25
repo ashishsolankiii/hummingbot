@@ -1,10 +1,19 @@
 #!/usr/bin/env python
 import asyncio
 import aiohttp
-import ssl
+import docker
 import json
 import pandas as pd
+import ssl
+
 from os import path
+from typing import Dict, Any, TYPE_CHECKING
+
+from hummingbot import cert_path, root_path
+from hummingbot.client.settings import GATEAWAY_CA_CERT_PATH, GATEAWAY_CLIENT_CERT_PATH, GATEAWAY_CLIENT_KEY_PATH
+from hummingbot.client.config.global_config_map import global_config_map
+from hummingbot.client.config.security import Security
+from hummingbot.client.ui.completer import load_completer
 from hummingbot.core.network_iterator import NetworkStatus
 from hummingbot.core.utils.async_utils import safe_ensure_future
 from hummingbot.core.utils.gateway_config_utils import (
@@ -13,17 +22,15 @@ from hummingbot.core.utils.gateway_config_utils import (
     build_config_dict_display
 )
 from hummingbot.core.utils.ssl_cert import certs_files_exist, create_self_sign_certs
-from hummingbot import cert_path, root_path
-from hummingbot.client.settings import GATEAWAY_CA_CERT_PATH, GATEAWAY_CLIENT_CERT_PATH, GATEAWAY_CLIENT_KEY_PATH
-from hummingbot.client.config.global_config_map import global_config_map
-from hummingbot.client.config.security import Security
-from typing import Dict, Any, TYPE_CHECKING
-from hummingbot.client.ui.completer import load_completer
+
 if TYPE_CHECKING:
     from hummingbot.client.hummingbot_application import HummingbotApplication
 
 
 class GatewayCommand:
+
+    GATEWAY_DOCKER_REPO = "coinalpha/hummingbot"
+    GATEWAY_CONTAINER_NAME = "gateway-v2_container"
 
     def gateway(self,
                 option: str = None,
@@ -42,6 +49,17 @@ class GatewayCommand:
             safe_ensure_future(self._generate_certs())
         elif option == "test-connection":
             safe_ensure_future(self._test_connection())
+        elif option == "start":
+            safe_ensure_future(self._start_gateway())
+
+    async def _start_gateway(self):
+        if self._docker_client is None:
+            try:
+                client: docker.APIClient = docker.APIClient(base_url="unix://var/run/docker.sock")
+                self._docker_client = client
+                self.logger().info("Successfully connected to low-level Docker API.")
+            except Exception as e:
+                self.logger().error(f"Unable to connect to Docker low-level API socket. Error: {e}")
 
     async def _test_connection(self):
         # test that the gateway is running
